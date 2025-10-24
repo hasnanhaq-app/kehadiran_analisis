@@ -6,3 +6,4 @@ pytest-asyncio>=0.21.0
 SQLAlchemy>=1.4
 pymysql>=1.0
 aiosqlite>=0.20
+alembic>=1.11
