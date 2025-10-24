@@ -1,6 +1,21 @@
+import os
 import pytest
 from httpx import AsyncClient, ASGITransport
+
+# For tests we use a sqlite file DB so tests are fast and don't require MySQL.
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+
 from app.main import app
+from app.db import init_db, engine, Base
+
+
+@pytest.fixture(autouse=True)
+def prepare_db():
+    # Recreate schema for each test run to keep tests isolated.
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
 @pytest.mark.asyncio
 async def test_read_root():
