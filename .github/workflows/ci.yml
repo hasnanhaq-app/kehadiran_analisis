@@ -86,8 +86,10 @@ jobs:
           print('tables =', ins.get_table_names())
           PY
 
-          # Run tests
-          PYTHONPATH=. pytest -q
+          # Run tests using a separate Sqlite DB so pytest's drop_all/create_all
+          # doesn't remove the MySQL tables we just migrated (analytics depends on them).
+          echo "Running tests with isolated sqlite DB"
+          DATABASE_URL=sqlite:///./test.db PYTHONPATH=. pytest -q
       - name: Run analytics example (MySQL)
         env:
           DATABASE_URL: mysql+pymysql://root:rootpassword@127.0.0.1:3306/python_fastapi_database_test
