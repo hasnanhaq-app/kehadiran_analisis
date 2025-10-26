@@ -65,7 +65,28 @@ jobs:
           DATABASE_URL: mysql+pymysql://root:rootpassword@127.0.0.1:3306/python_fastapi_database_test
           PYTHONPATH: .
         run: |
+          # Apply migrations
           alembic -c alembic.ini upgrade head
+
+          # Debug / verification: show current alembic revision and list tables
+          echo "=== Alembic current revision ==="
+          alembic -c alembic.ini current || true
+
+          echo "=== SHOW TABLES (mysql) ==="
+          mysql -h127.0.0.1 -uroot -prootpassword -e "USE python_fastapi_database_test; SHOW TABLES;"
+
+          echo "=== SQLAlchemy inspector list of tables ==="
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          url = os.getenv('DATABASE_URL')
+          print('DATABASE_URL=', url)
+          eng = create_engine(url)
+          ins = inspect(eng)
+          print('tables =', ins.get_table_names())
+          PY
+
+          # Run tests
           PYTHONPATH=. pytest -q
       - name: Run analytics example (MySQL)
         env:
