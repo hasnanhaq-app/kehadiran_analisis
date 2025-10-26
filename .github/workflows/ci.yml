@@ -67,3 +67,10 @@ jobs:
         run: |
           alembic -c alembic.ini upgrade head
           PYTHONPATH=. pytest -q
+      - name: Run analytics example (MySQL)
+        env:
+          DATABASE_URL: mysql+pymysql://root:rootpassword@127.0.0.1:3306/python_fastapi_database_test
+          PYTHONPATH: .
+        run: |
+          # Run the analytics example which will export items/users to analytics_output/
+          python scripts/analytics_example.py

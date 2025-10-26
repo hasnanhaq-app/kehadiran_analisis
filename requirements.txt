@@ -7,3 +7,4 @@ SQLAlchemy>=1.4
 pymysql>=1.0
 aiosqlite>=0.20
 alembic>=1.11
+pandas>=2.2

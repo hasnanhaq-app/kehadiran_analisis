@@ -101,6 +101,56 @@ Notes and safety
 
 If you want, I can add convenience Makefile targets (e.g. `make db-upgrade`, `make db-rev`) or CI steps that run Alembic automatically.
 
+Analytics (pandas)
+-------------------
+
+This repo includes a small analytics helper module at `app/analytics.py` that
+lets analysts load database tables into pandas DataFrames and run simple
+aggregations. It is intentionally lightweight and intended for ad-hoc analysis.
+
+Quick usage
+
+```bash
+cd /Users/macbookm1/Code/python/fastAPI-base
+source .venv/bin/activate
+set -a; source .env; set +a
+python scripts/analytics_example.py
+```
+
+This script will read `items` and `users` from the database configured by
+`DATABASE_URL`, write CSVs to the `analytics_output/` folder, and print the
+output path.
+
+If you need more complex ETL/analysis pipelines, I can add an example using
+`dask` for larger-than-memory data, or a notebook with example visualizations.
+
+Chunked reads for large tables
+-----------------------------
+
+If your tables are larger than available memory you can use the chunked-read
+helpers in `app/analytics.py`:
+
+- `query_to_df_chunks(sql, engine=None, chunksize=10000)` — returns an iterator
+	of pandas DataFrame chunks.
+- `to_csv_chunked(sql, csv_path, engine=None, chunksize=10000)` — stream-query
+	results and write them to CSV without loading the entire table into memory.
+
+Example: export a large table to CSV without OOM
+
+```bash
+cd /Users/macbookm1/Code/python/fastAPI-base
+source .venv/bin/activate
+set -a; source .env; set +a
+python - <<'PY'
+from app.analytics import to_csv_chunked
+sql = 'SELECT * FROM very_large_table'
+to_csv_chunked(sql, 'very_large_table.csv', chunksize=20000)
+print('done')
+PY
+```
+
+If you need more throughput, I can add a parallel exporter (process pool or dask) that writes partitions concurrently.
+
 Controlling automatic DB creation
 --------------------------------
 
