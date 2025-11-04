@@ -1,3 +1,85 @@
+# Kehadiran Analisis (FastAPI ETL)
+
+This repository contains a small FastAPI example plus ETL tooling converted from a Jupyter notebook that performs attendance (kehadiran) analysis.
+
+What I added
+- `app/presensi.py` — transformed core notebook functions (helpers and `generate_presensi_laporan`).
+- `app/etl.py` — chunked ETL helpers (fetch from remote DB, transform, load into local DB).
+- `scripts/run_rekap.py` — CLI to fetch presence tables (via direct DB URL or SSH tunnel), run the transform, and save results to the local DB or Excel.
+- `scripts/run_etl.py` — generic chunked ETL runner (source -> transform -> local DB).
+- `tests/test_presensi.py` — unit tests for the presensi helpers and a basic generate_presensi_laporan scenario.
+
+Quick setup
+
+1. Create and activate a virtualenv (macOS / zsh):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. Environment variables
+
+- `DATABASE_URL` — local database where results will be stored (e.g. `sqlite:///./local.db`).
+- `REMOTE_DATABASE_URL` — optional, remote DB URL for direct access (e.g. `mysql+pymysql://user:pass@host:3306/bkd_presensi`).
+- For SSH mode (use `--use-ssh`): set or pass `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PASSWORD` (or use key files). Also provide `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+
+Security note: avoid committing secrets to the repo. Prefer to provide credentials at runtime or use a secrets manager.
+
+Running the attendance rekap (rekapitulasi)
+
+Direct DB URL mode (recommended if remote DB is accessible):
+
+```bash
+export REMOTE_DATABASE_URL='mysql+pymysql://user:pass@host:3306/bkd_presensi'
+export DATABASE_URL='sqlite:///./local.db'
+
+python scripts/run_rekap.py --instansi 3062 --month 10 --year 2025
+```
+
+SSH tunneling mode (use when DB only reachable via SSH):
+
+```bash
+export DATABASE_URL='sqlite:///./local.db'
+
+python scripts/run_rekap.py \
+	--use-ssh \
+	--ssh-host kehadiran-bkd.pemkomedan.go.id \
+	--ssh-port 8570 \
+	--ssh-user root \
+	--ssh-password '<SSH_PASSWORD>' \
+	--db-user root \
+	--db-password '<DB_PASSWORD>' \
+	--instansi 3062 --month 10 --year 2025
+```
+
+The script will:
+- fetch `presensi_karyawan`, `presensi_rencana_shift`, `presensi_kehadiran`, `presensi_absen`, and `presensi_shift` tables from the remote source;
+- merge shift schedules into the rencana table similar to the notebook;
+- call `generate_presensi_laporan` to build the `df_laporan` DataFrame;
+- write the result to the local DB table `rekap_kehadiran` (default) or an Excel file if `--out-excel` is passed.
+
+Chunked ETL
+
+If you're working with very large tables, use `app/etl.py` and `scripts/run_etl.py` which support reading in chunks and writing incrementally to avoid OOM.
+
+Running tests
+
+```bash
+# from project root, virtualenv active
+pytest -q
+```
+
+Notes & next improvements
+
+- Performance: `generate_presensi_laporan` currently iterates rows and may be slow for very large datasets. I can help vectorize/group operations for speed.
+- Schema: results are written with `pandas.DataFrame.to_sql`. For production, consider creating a proper schema and Alembic migrations.
+- Deprecations: Pydantic and FastAPI show deprecation warnings in tests (see `app/schemas.py` and `app/main.py`). Consider updating to lifespan handlers and Pydantic v2 `ConfigDict` if you plan to upgrade.
+
+If you want, I can add a GitHub Actions workflow to run tests on push and a sample `.env.example` file to document env variables.
+
+— End of README
 # Simple FastAPI app
 
 This is a minimal FastAPI example using a venv.
