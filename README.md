@@ -60,6 +60,138 @@ The script will:
 - call `generate_presensi_laporan` to build the `df_laporan` DataFrame;
 - write the result to the local DB table `rekap_kehadiran` (default) or an Excel file if `--out-excel` is passed.
 
+ETL scripts and usage (expanded)
+--------------------------------
+
+There are two main helper scripts for ETL work in this repo:
+
+- `scripts/run_rekap.py` — high-level runner that fetches the presence-related tables from a remote DB (either via a direct SQLAlchemy URL or over an SSH tunnel), runs the notebook-derived transform in `app/presensi.py` (`generate_presensi_laporan`), writes the resulting DataFrame to the local database table `rekap_kehadiran`, and optionally exports an Excel report.
+- `scripts/run_etl.py` — a generic, chunk-aware ETL runner that uses `app/etl.py` to fetch large tables in chunks, apply a transform, and append results to a local DB without loading everything into memory.
+
+Usage summary (two common modes):
+
+1) Direct DB URL mode (recommended when you can connect directly):
+
+```bash
+export DATABASE_URL='sqlite:///./local.db'
+export REMOTE_DATABASE_URL='mysql+pymysql://user:pass@host:3306/bkd_presensi'
+
+python scripts/run_rekap.py \
+	--instansi 3062 \
+	--month 10 \
+	--year 2025 \
+	--local-url "$DATABASE_URL" \
+	--remote-url "$REMOTE_DATABASE_URL"
+```
+
+2) SSH tunneling mode (when the DB is only reachable via SSH):
+
+```bash
+export DATABASE_URL='sqlite:///./local.db'
+
+python scripts/run_rekap.py \
+	--use-ssh \
+	--ssh-host kehadiran-host.example.org \
+	--ssh-port 22 \
+	--ssh-user root \
+	--ssh-password '<SSH_PASSWORD>' \
+	--db-user root \
+	--db-password '<DB_PASSWORD>' \
+	--db-name bkd_presensi \
+	--instansi 3062 \
+	--month 10 \
+	--year 2025 \
+	--local-url "$DATABASE_URL" \
+	--out-excel rekap_3062_10_2025.xlsx
+```
+
+Output handling
+---------------
+
+- Excel output: by default the runner will place Excel reports into an `out/` directory. If you pass `--out-excel` with a relative filename (for example `rekap.xlsx`), the runner will create `out/` (if missing) and write `out/rekap.xlsx`. If you pass an absolute path it is used as-is.
+- Local DB: the default local DB table is `rekap_kehadiran`. You can change the local DB via the `--local-url` flag or the `DATABASE_URL` environment variable.
+- Repository hygiene: generated outputs under `out/` are ignored via `.gitignore` to avoid committing large or sensitive exports.
+
+Dependency & compatibility notes
+-------------------------------
+
+- Required packages (examples): pandas, sqlalchemy, pymysql, sshtunnel, paramiko==2.11.0, openpyxl, pytest.
+- Important: `sshtunnel` depends on `paramiko` APIs that were changed in `paramiko` 4.x. We pin `paramiko==2.11.0` in `requirements.txt` to avoid runtime import errors when using SSH tunnels.
+- Excel export uses `openpyxl` as the pandas engine — make sure it is installed if you plan to write `.xlsx` files.
+
+Tests & CI
+----------
+
+- Unit tests for the presensi transform live in `tests/test_presensi.py`. Run them locally with:
+
+```bash
+# with venv activated
+pytest -q
+```
+
+- A GitHub Actions workflow (`.github/workflows/pytest.yml`) runs the test suite on pushes and PRs.
+
+Troubleshooting (common issues)
+------------------------------
+
+- Missing `openpyxl` when writing Excel: `pip install openpyxl`.
+- `sshtunnel` fails with `AttributeError` referencing `DSSKey` or similar: ensure `paramiko==2.11.0` is installed (older `paramiko` is compatible with the version of `sshtunnel` used here).
+- TypeError comparing Timestamp with date in transformations: the runner coerces presensi timestamp columns with `pd.to_datetime` before comparisons; if you modify upstream columns make sure they are parseable datetimes.
+
+Housekeeping: local DB & generated files
+--------------------------------------
+
+If you created a local SQLite database (for example `local.db`) during tests or an ETL run and you prefer not to keep it in the Git history, untrack it and add it to `.gitignore`:
+
+```bash
+# remove from git index but keep local file
+git rm --cached local.db || true
+echo 'local.db' >> .gitignore
+git add .gitignore && git commit -m "Ignore local DB"
+```
+
+Try it: minimal end-to-end
+-------------------------
+
+1. Create and activate venv and install deps
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. Run a quick ETL (replace values with your credentials or use SSH mode):
+
+```bash
+export DATABASE_URL='sqlite:///./local.db'
+export REMOTE_DATABASE_URL='mysql+pymysql://user:pass@host:3306/bkd_presensi'
+
+python scripts/run_rekap.py --instansi 3062 --month 10 --year 2025 --local-url "$DATABASE_URL" --remote-url "$REMOTE_DATABASE_URL"
+```
+
+The report will be written into `out/` and the `rekap_kehadiran` table will be created/updated in the local DB.
+
+Using `.env` and the SSH helper
+--------------------------------
+
+For convenient, repeatable runs you can store non-secret defaults in `.env` (do not commit it). A `.env.example` is provided. Quick steps:
+
+```bash
+# copy the example and edit .env locally
+cp .env.example .env
+# edit .env and fill SSH_HOST, SSH_USER, DB_USER, DB_PASSWORD, INSTANSI, MONTH, YEAR as needed
+```
+
+There's a helper script `scripts/run_rekap_ssh.sh` that will read `.env` (or prompt for missing values) and run the ETL over an SSH tunnel. Make it executable and run it like this:
+
+```bash
+chmod +x scripts/run_rekap_ssh.sh
+./scripts/run_rekap_ssh.sh --instansi 3062 --month 10 --year 2025
+```
+
+The helper supports `--out-excel` to set the Excel filename and `--no-prompt` to run non-interactively (requires the values to be present in `.env` or passed as flags).
+
 Chunked ETL
 
 If you're working with very large tables, use `app/etl.py` and `scripts/run_etl.py` which support reading in chunks and writing incrementally to avoid OOM.
