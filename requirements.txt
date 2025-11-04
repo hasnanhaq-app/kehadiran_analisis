@@ -8,3 +8,6 @@ pymysql>=1.0
 aiosqlite>=0.20
 alembic>=1.11
 pandas>=2.2
+sshtunnel>=0.4
+paramiko==2.11.0
+openpyxl>=3.0
