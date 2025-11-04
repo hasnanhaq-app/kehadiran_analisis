@@ -65,11 +65,12 @@ def fetch_via_ssh(ssh_host: str, ssh_port: int, ssh_user: str, ssh_password: Opt
 
         df_shift = pd.read_sql("SELECT * FROM presensi_shift", conn)
 
+        # presensi_absen may not have instansi_id column; filter using joined presensi_karyawan
         df_absen = pd.read_sql(
             """
             SELECT presensi_absen.* FROM presensi_absen
             LEFT JOIN presensi_karyawan ON presensi_absen.karyawan_id = presensi_karyawan.id
-            WHERE presensi_absen.instansi_id = %s
+            WHERE presensi_karyawan.instansi_id = %s
             """,
             conn,
             params=[instansi_id],
@@ -99,8 +100,9 @@ def fetch_via_engine(remote_url: str, instansi_id: int, tanggal_awal: str, tangg
 
         df_shift = pd.read_sql_query("SELECT * FROM presensi_shift", conn)
 
+        # presensi_absen may not have instansi_id column; filter using joined presensi_karyawan
         df_absen = pd.read_sql_query(
-            "SELECT presensi_absen.* FROM presensi_absen LEFT JOIN presensi_karyawan ON presensi_absen.karyawan_id = presensi_karyawan.id WHERE presensi_absen.instansi_id = %s",
+            "SELECT presensi_absen.* FROM presensi_absen LEFT JOIN presensi_karyawan ON presensi_absen.karyawan_id = presensi_karyawan.id WHERE presensi_karyawan.instansi_id = %s",
             conn,
             params=[instansi_id],
         )
@@ -193,6 +195,12 @@ def main():
     if 'tanggal_selesai' in df_absen.columns:
         df_absen['tanggal_selesai'] = pd.to_datetime(df_absen['tanggal_selesai'])
 
+    # ensure presensi datetimes are parsed
+    if 'tanggal_masuk' in df_presensi.columns:
+        df_presensi['tanggal_masuk'] = pd.to_datetime(df_presensi['tanggal_masuk'])
+    if 'tanggal_kirim' in df_presensi.columns:
+        df_presensi['tanggal_kirim'] = pd.to_datetime(df_presensi['tanggal_kirim'])
+
     # generate laporan
     df_laporan = generate_presensi_laporan(df_pegawai, df_rencana_shift, df_presensi, df_absen, args.month, args.year, tanggal_awal_dt, tanggal_akhir_dt)
 
@@ -210,10 +218,18 @@ def main():
     df_laporan.to_sql(args.out_table, local_engine, if_exists='replace', index=False, method='multi')
     print(f'Wrote {len(df_laporan)} rows to local table {args.out_table}')
 
+    # prepare output folder and excel path
+    out_dir = Path("out")
+    out_dir.mkdir(exist_ok=True)
+
     if args.out_excel:
         out_path = Path(args.out_excel)
-        df_laporan.to_excel(out_path, index=False)
-        print(f'Wrote Excel report to {out_path}')
+    else:
+        # default organized path
+        out_path = out_dir / f"rekap_{args.instansi}_{args.month}_{args.year}.xlsx"
+
+    df_laporan.to_excel(out_path, index=False)
+    print(f'Wrote Excel report to {out_path}')
 
 
 if __name__ == '__main__':
