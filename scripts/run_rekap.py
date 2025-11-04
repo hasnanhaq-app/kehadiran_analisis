@@ -223,7 +223,14 @@ def main():
     out_dir.mkdir(exist_ok=True)
 
     if args.out_excel:
-        out_path = Path(args.out_excel)
+        # If user provided a path and it's absolute, respect it. If it's a
+        # relative filename, place it under the `out/` folder to keep outputs
+        # organized.
+        candidate = Path(args.out_excel)
+        if candidate.is_absolute():
+            out_path = candidate
+        else:
+            out_path = out_dir / candidate
     else:
         # default organized path
         out_path = out_dir / f"rekap_{args.instansi}_{args.month}_{args.year}.xlsx"
