@@ -1,0 +1,76 @@
+{
+  "info": {
+    "name": "fastapi-base",
+    "_postman_id": "",
+    "description": "Postman collection for the simple FastAPI app (local dev)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Root - GET /",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Item - POST /items",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": 1,\n  \"name\": \"Test\",\n  \"description\": \"desc\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/items",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "items"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Item - GET /items/:id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/items/1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "items",
+            "1"
+          ]
+        }
+      }
+    }
+  ]
+}
