@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from . import models, schemas
 from .db import SessionLocal, init_db
+from .rekap import run_rekap
 
 app = FastAPI(title="Simple FastAPI App")
 
@@ -43,6 +44,38 @@ def create_item(item: schemas.Item, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_item)
     return db_item
+
+
+@app.post("/rekap")
+def rekap_endpoint(payload: schemas.RekapRequest):
+    """Run rekap pipeline in-memory and return laporan as JSON list.
+
+    Warning: this endpoint performs remote DB access. Use with caution and
+    secure the API in production (authentication, rate limits, background jobs).
+    """
+    try:
+        df = run_rekap(
+            payload.instansi,
+            payload.month,
+            payload.year,
+            remote_url=payload.remote_url,
+            use_ssh=bool(payload.use_ssh),
+            ssh_host=payload.ssh_host,
+            ssh_port=int(payload.ssh_port) if payload.ssh_port is not None else 22,
+            ssh_user=payload.ssh_user,
+            ssh_password=payload.ssh_password,
+            db_host=payload.db_host,
+            db_port=int(payload.db_port) if payload.db_port is not None else 3306,
+            db_user=payload.db_user,
+            db_password=payload.db_password,
+            db_name=payload.db_name,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # convert DataFrame to list of records
+    result = df.to_dict(orient='records') if not df.empty else []
+    return {"count": len(result), "data": result}
 
 
 if __name__ == "__main__":
