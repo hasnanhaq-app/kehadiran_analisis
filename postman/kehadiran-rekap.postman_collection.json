@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "kehadiran-rekap-collection",
     "name": "Kehadiran Rekap API",
-    "description": "Postman collection for the /rekap API endpoint (run rekap pipeline and return laporan)",
+  "description": "Postman collection for the /rekap API endpoint (run rekap pipeline and return laporan).\nNote: the API reads remote DB or SSH credentials from environment variables or a .env file; requests only need instansi, month and year unless you want to override credentials.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -15,9 +15,10 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025,\n  \"remote_url\": \"mysql+pymysql://user:pass@host:3306/bkd_presensi\"\n}"
+          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025\n}"
         },
-        "url": {
+  "description": "Direct DB mode: you can set REMOTE_DATABASE_URL in the server environment or .env so the request body only needs instansi/month/year. You may still include remote_url here to override the environment for testing.",
+  "url": {
           "raw": "http://127.0.0.1:8000/rekap",
           "protocol": "http",
           "host": ["127","0","0","1"],
@@ -36,9 +37,10 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025,\n  \"use_ssh\": true,\n  \"ssh_host\": \"kehadiran-host.example.org\",\n  \"ssh_port\": 22,\n  \"ssh_user\": \"root\",\n  \"ssh_password\": \"<SSH_PASSWORD>\",\n  \"db_user\": \"root\",\n  \"db_password\": \"<DB_PASSWORD>\",\n  \"db_name\": \"bkd_presensi\"\n}"
+          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025\n}"
         },
-        "url": {
+  "description": "SSH mode: configure SSH_HOST, SSH_USER, SSH_PASSWORD and DB_* vars in the server environment or .env. The request body only needs instansi/month/year unless you want to override credentials here for testing.",
+  "url": {
           "raw": "http://127.0.0.1:8000/rekap",
           "protocol": "http",
           "host": ["127","0","0","1"],
@@ -66,7 +68,7 @@
           "port": "8000",
           "path": ["rekap"]
         },
-        "description": "Call rekap using values from local .env and the helper script; this request assumes the API will read credentials from the request or use preconfigured secrets."
+        "description": "Call rekap using values from local .env and the helper script; this request assumes the API will read credentials from environment/.env. Keep request bodies minimal (instansi/month/year)."
       },
       "response": []
     }

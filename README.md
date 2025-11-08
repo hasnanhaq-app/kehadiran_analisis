@@ -192,6 +192,45 @@ chmod +x scripts/run_rekap_ssh.sh
 
 The helper supports `--out-excel` to set the Excel filename and `--no-prompt` to run non-interactively (requires the values to be present in `.env` or passed as flags).
 
+API: `/rekap` endpoint and environment variables
+-----------------------------------------------
+
+The FastAPI app exposes a POST `/rekap` endpoint that runs the rekap pipeline in-memory and returns the laporan (report) as JSON. To keep requests minimal and avoid sending secrets over HTTP, the endpoint reads connection information from environment variables (or a local `.env` file when `python-dotenv` is installed).
+
+Minimal request body (JSON):
+
+```json
+{ "instansi": 3062, "month": 10, "year": 2025 }
+```
+
+Environment variables the API reads (examples for `.env`):
+
+```env
+# Direct DB URL mode (preferred when reachable from the API server)
+REMOTE_DATABASE_URL=mysql+pymysql://db_user:db_password@db_host:3306/bkd_presensi
+
+# Or, SSH tunneling mode (when DB is only reachable via SSH)
+SSH_HOST=kehadiran-host.example.org
+SSH_PORT=22
+SSH_USER=sshuser
+SSH_PASSWORD=<SSH_PASSWORD>
+
+# DB credentials used after the SSH tunnel is established
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=dbuser
+DB_PASSWORD=dbpassword
+DB_NAME=bkd_presensi
+
+# Local DB where rekap results will be written
+DATABASE_URL=sqlite:///./local.db
+```
+
+Notes:
+- If `REMOTE_DATABASE_URL` is set, it will be used for a direct connection. If not set and `SSH_HOST` is present, the API will attempt to use SSH tunneling with the `DB_*` variables.
+- You may still include `remote_url` or SSH/DB fields in the request body to override environment values for testing, but this is discouraged for production.
+- Keep `.env` out of version control. Use a secret manager for production systems.
+
 Chunked ETL
 
 If you're working with very large tables, use `app/etl.py` and `scripts/run_etl.py` which support reading in chunks and writing incrementally to avoid OOM.
