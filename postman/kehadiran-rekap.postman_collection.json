@@ -1,0 +1,74 @@
+{
+  "info": {
+    "_postman_id": "kehadiran-rekap-collection",
+    "name": "Kehadiran Rekap API",
+    "description": "Postman collection for the /rekap API endpoint (run rekap pipeline and return laporan)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Rekap (direct DB)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025,\n  \"remote_url\": \"mysql+pymysql://user:pass@host:3306/bkd_presensi\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/rekap",
+          "protocol": "http",
+          "host": ["127","0","0","1"],
+          "port": "8000",
+          "path": ["rekap"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Rekap (SSH tunnel)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025,\n  \"use_ssh\": true,\n  \"ssh_host\": \"kehadiran-host.example.org\",\n  \"ssh_port\": 22,\n  \"ssh_user\": \"root\",\n  \"ssh_password\": \"<SSH_PASSWORD>\",\n  \"db_user\": \"root\",\n  \"db_password\": \"<DB_PASSWORD>\",\n  \"db_name\": \"bkd_presensi\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/rekap",
+          "protocol": "http",
+          "host": ["127","0","0","1"],
+          "port": "8000",
+          "path": ["rekap"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Rekap (run_rekap_ssh helper)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"instansi\": 3062,\n  \"month\": 10,\n  \"year\": 2025\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/rekap",
+          "protocol": "http",
+          "host": ["127","0","0","1"],
+          "port": "8000",
+          "path": ["rekap"]
+        },
+        "description": "Call rekap using values from local .env and the helper script; this request assumes the API will read credentials from the request or use preconfigured secrets."
+      },
+      "response": []
+    }
+  ]
+}
