@@ -9,6 +9,9 @@ from sqlalchemy.exc import OperationalError
 from sshtunnel import SSHTunnelForwarder
 import pymysql
 
+import os
+from dotenv import load_dotenv
+
 from .analytics import get_engine
 from .presensi import generate_presensi_laporan, generate_laporan_bulanan
 
@@ -93,7 +96,8 @@ def _fetch_via_engine(remote_url: str, instansi_id: int, tanggal_awal: str, tang
 
 def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str] = None, use_ssh: bool = False,
               ssh_host: Optional[str] = None, ssh_port: int = 22, ssh_user: Optional[str] = None, ssh_password: Optional[str] = None,
-              db_host: str = '127.0.0.1', db_port: int = 3306, db_user: Optional[str] = None, db_password: Optional[str] = None, db_name: str = 'bkd_presensi') -> pd.DataFrame:
+              db_host: str = '127.0.0.1', db_port: int = 3306, db_user: Optional[str] = None, db_password: Optional[str] = None, db_name: str = 'bkd_presensi',
+              local_url: Optional[str] = None, save_raw: bool = False) -> pd.DataFrame:
     """Fetch data (via direct engine or SSH), run generate_presensi_laporan and return the result DataFrame.
 
     This function keeps everything in-memory and does not write to local DB or Excel.
@@ -115,6 +119,32 @@ def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str]
         if not remote_url:
             raise ValueError('remote_url must be provided when not using SSH')
         df_pegawai, df_rencana, df_presensi, df_shift, df_absen = _fetch_via_engine(remote_url, instansi, tanggal_awal, tanggal_akhir)
+
+    # Optionally save the raw fetched tables to a local DB
+    if save_raw:
+        # get local engine (prefer explicit local_url, then env DATABASE_URL)
+        try:
+            from .analytics import get_engine
+
+            local_engine = get_engine(local_url)
+        except Exception:
+            local_engine = None
+
+        if local_engine is None:
+            raise ValueError("save_raw=True but no local database available (set local_url or DATABASE_URL)")
+
+        # write DataFrames to local DB replacing existing content for an idempotent snapshot
+        try:
+            with local_engine.begin() as conn:
+                # choose table names matching source
+                df_pegawai.to_sql('presensi_karyawan', conn, if_exists='replace', index=False)
+                df_rencana.to_sql('presensi_rencana_shift', conn, if_exists='replace', index=False)
+                df_presensi.to_sql('presensi_kehadiran', conn, if_exists='replace', index=False)
+                df_shift.to_sql('presensi_shift', conn, if_exists='replace', index=False)
+                df_absen.to_sql('presensi_absen', conn, if_exists='replace', index=False)
+        except Exception as e:
+            # fail early and surface the error
+            raise
 
     # merge rencana + shift similar to script
     if 'shift_id' in df_rencana.columns:
@@ -143,6 +173,8 @@ def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str]
     if 'tanggal_kirim' in df_presensi.columns:
         df_presensi['tanggal_kirim'] = pd.to_datetime(df_presensi['tanggal_kirim'], errors='coerce')
 
+    # simpan_data_karyawan(df_pegawai)
+
     df_laporan = generate_presensi_laporan(df_pegawai, df_rencana_shift, df_presensi, df_absen, month, year, tanggal_awal, tanggal_akhir)
 
     # df_laporan = df_laporan[df_laporan['karyawan_id'] == 22777]
@@ -151,5 +183,140 @@ def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str]
 
     df_laporan_bulanan = generate_laporan_bulanan(df_laporan)
 
+    df_laporan_bulanan['instansi_id'] = instansi
+    df_laporan_bulanan['tahun'] = year
+    df_laporan_bulanan['bulan'] = month
+
+    # menyimpan hasil rekap ke local db
+    # df_laporan_bulanan ditambahkan kolom instansi_id, tahun dan bulan
+
+    simpan_rekap_bulanan(df_laporan_bulanan)
+
     return df_laporan_bulanan
 # End of run_rekap
+
+def simpan_data_karyawan(df_pegawai: pd.DataFrame) -> None:
+
+    local_db_connection = local_db_connection()
+
+    insert_query = """
+    INSERT INTO presensi_karyawan (
+        id, nip, name, group_id, imei, instansi_id, created_at, updated_at, deleted_at, tempat_lahir, tanggal_lahir, pendidikan_terakhir, alamat, golongan, kordinat, jabatan, eselon_id, pangkat_id, status_face, comment_face, verified_date, presensi_face
+    ) VALUES (
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+    ) ON DUPLICATE KEY UPDATE
+        nip=VALUES(nip),
+        name=VALUES(name),
+        group_id=VALUES(group_id),
+        imei=VALUES(imei),
+        instansi_id=VALUES(instansi_id),
+        created_at=VALUES(created_at),
+        updated_at=VALUES(updated_at),
+        deleted_at=VALUES(deleted_at),
+        tempat_lahir=VALUES(tempat_lahir),
+        tanggal_lahir=VALUES(tanggal_lahir),
+        pendidikan_terakhir=VALUES(pendidikan_terakhir),
+        alamat=VALUES(alamat),
+        golongan=VALUES(golongan),
+        kordinat=VALUES(kordinat),
+        jabatan=VALUES(jabatan),
+        eselon_id=VALUES(eselon_id),
+        pangkat_id=VALUES(pangkat_id),
+        status_face=VALUES(status_face),
+        comment_face=VALUES(comment_face),
+        verified_date=VALUES(verified_date),
+        presensi_face=VALUES(presensi_face) 
+    """
+
+    with local_db_connection.cursor() as cursor:
+        for _, row in df_pegawai.iterrows():
+            cursor.execute(insert_query, (
+                row['id'],
+                row['nip'],
+                row['name'],
+                row['group_id'],
+                row['imei'],
+                row['instansi_id'],
+                row['created_at'],
+                row['updated_at'],
+                row['deleted_at'],
+                row['tempat_lahir'],
+                row['tanggal_lahir'],
+                row['pendidikan_terakhir'],
+                row['alamat'],
+                row['golongan'],
+                row['kordinat'],
+                row['jabatan'],
+                row['eselon_id'],
+                row['pangkat_id'],
+                row['status_face'],
+                row['comment_face'],
+                row['verified_date'],
+                row['presensi_face']
+            ))
+        local_db_connection.commit()
+    local_db_connection.close()
+
+
+def simpan_rekap_bulanan(df_laporan_bulanan: pd.DataFrame) -> None:
+    """Simpan df_laporan_bulanan ke local DB dengan menambahkan kolom instansi_id, tahun, bulan."""
+
+    local_db_connection = pymysql.connect(
+        host=os.getenv('DB_HOST_LOCAL', 'localhost'),
+        port=int(os.getenv('DB_PORT_LOCAL', 3306)),
+        user=os.getenv('DB_USER_LOCAL', 'root'),
+        password=os.getenv('DB_PASSWORD_LOCAL', ''),
+        db=os.getenv('DB_NAME_LOCAL', 'bkd_presensi')
+    )
+    
+    insert_query = """
+    INSERT INTO rekap_bulanan (
+        karyawan_id, instansi_id, tahun, bulan, jumlah_hari, hadir, tidak_hadir, twm, t1, t2, t3, t4, twp, p1, p2, p3, p4, izin_sakit, tugas_bk, tanpa_keterangan
+    ) VALUES (
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+    )
+    ON DUPLICATE KEY UPDATE
+        jumlah_hari=VALUES(jumlah_hari),
+        hadir=VALUES(hadir),
+        tidak_hadir=VALUES(tidak_hadir),
+        twm=VALUES(twm),
+        t1=VALUES(t1),
+        t2=VALUES(t2),
+        t3=VALUES(t3),
+        t4=VALUES(t4),
+        twp=VALUES(twp),
+        p1=VALUES(p1),
+        p2=VALUES(p2),
+        p3=VALUES(p3),
+        p4=VALUES(p4),
+        izin_sakit=VALUES(izin_sakit),
+        tugas_bk=VALUES(tugas_bk),
+        tanpa_keterangan=VALUES(tanpa_keterangan)
+    """
+
+    with local_db_connection.cursor() as cursor:
+        for _, row in df_laporan_bulanan.iterrows():
+            cursor.execute(insert_query, (
+                row['karyawan_id'],
+                row['instansi_id'],
+                row['tahun'],
+                row['bulan'],
+                row['jumlah_hari'],
+                row['hadir'],
+                row['tidak_hadir'],
+                row['twm'],
+                row['t1'],
+                row['t2'],
+                row['t3'],
+                row['t4'],
+                row['twp'],
+                row['p1'],
+                row['p2'],
+                row['p3'],
+                row['p4'],
+                row['izin_sakit'],
+                row['tugas_bk'],
+                row['tanpa_keterangan']
+            ))
+        local_db_connection.commit()
+    local_db_connection.close()

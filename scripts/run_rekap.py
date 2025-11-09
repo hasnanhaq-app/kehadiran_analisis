@@ -129,6 +129,8 @@ def main():
     p.add_argument('--db-name', default='bkd_presensi')
     p.add_argument('--out-table', default='rekap_kehadiran')
     p.add_argument('--out-excel', default=None)
+    p.add_argument('--save-raw', action='store_true', help='Save raw fetched tables (presensi_karyawan, presensi_rencana_shift, presensi_kehadiran, presensi_shift, presensi_absen) to local DB')
+    p.add_argument('--replace-raw', action='store_true', help='When saving raw tables, replace existing local tables instead of appending')
     args = p.parse_args()
 
     # compose tanggal_awal / akhir
@@ -215,6 +217,22 @@ def main():
         return
 
     local_engine = get_engine(local)
+
+    # Optionally save raw fetched tables to the local DB
+    if args.save_raw:
+        mode = 'replace' if args.replace_raw else 'append'
+        try:
+            print(f"Saving raw tables to local DB (mode={mode})...")
+            df_pegawai.to_sql('presensi_karyawan', local_engine, if_exists=mode, index=False, method='multi')
+            df_rencana.to_sql('presensi_rencana_shift', local_engine, if_exists=mode, index=False, method='multi')
+            df_presensi.to_sql('presensi_kehadiran', local_engine, if_exists=mode, index=False, method='multi')
+            df_shift.to_sql('presensi_shift', local_engine, if_exists=mode, index=False, method='multi')
+            df_absen.to_sql('presensi_absen', local_engine, if_exists=mode, index=False, method='multi')
+            print('Saved raw tables to local DB')
+        except Exception as e:
+            print('Failed to save raw tables to local DB:', e)
+            # continue to try writing laporan as well
+
     df_laporan.to_sql(args.out_table, local_engine, if_exists='replace', index=False, method='multi')
     print(f'Wrote {len(df_laporan)} rows to local table {args.out_table}')
 
