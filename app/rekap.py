@@ -12,6 +12,8 @@ import pymysql
 import os
 from dotenv import load_dotenv
 
+import datetime
+
 from .analytics import get_engine
 from .presensi import generate_presensi_laporan, generate_laporan_bulanan
 
@@ -102,6 +104,18 @@ def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str]
 
     This function keeps everything in-memory and does not write to local DB or Excel.
     """
+    now = datetime.datetime.now()
+
+    # Jika yang dicetak lebih dari bulan sekarang di tahun ini, batalkan
+    if year > now.year or (year == now.year and month > now.month):
+        raise ValueError("Tidak bisa mencetak laporan untuk bulan yang belum berjalan.")
+
+    # Jika yang dicetak tahun ini, maka bulan yang diambil hanya sampai bulan sekarang. Dan jika yang dicetak bulan ini, maka hari yang diambil hanya sampai hari sekarang.
+
+    if year == now.year and month == now.month:
+        last_day = now.day
+    
+    
     # compose tanggal_awal / akhir
     _, last_day = monthrange(year, month)
     tanggal_awal = f"{year:04d}-{month:02d}-01"
@@ -194,6 +208,41 @@ def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str]
 
     return df_laporan_bulanan
 # End of run_rekap
+
+def run_rekap_tahunan(instansi: int, year: int, *, remote_url: Optional[str] = None, use_ssh: bool = False,
+              ssh_host: Optional[str] = None, ssh_port: int = 22, ssh_user: Optional[str] = None, ssh_password: Optional[str] = None,
+              db_host: str = '127.0.0.1', db_port: int = 3306, db_user: Optional[str] = None, db_password: Optional[str] = None, db_name: str = 'bkd_presensi') -> pd.DataFrame:
+    """Run rekap for all months in the given year and return the concatenated DataFrame.
+    """
+    df_list = []
+
+    # jika yang dicetak tahun ini, maka bulan yang diambil hanya sampai bulan sekarang
+    
+    now = datetime.datetime.now()
+    if year == now.year:
+        end_month = now.month
+    else:
+        end_month = 12
+    
+    for month in range(1, end_month + 1):
+        df_monthly = run_rekap(
+            instansi, month, year,
+            remote_url=remote_url,
+            use_ssh=use_ssh,
+            ssh_host=ssh_host,
+            ssh_port=ssh_port,
+            ssh_user=ssh_user,
+            ssh_password=ssh_password,
+            db_host=db_host,
+            db_port=db_port,
+            db_user=db_user,
+            db_password=db_password,
+            db_name=db_name,
+        )
+        df_list.append(df_monthly)
+    df_yearly = pd.concat(df_list, ignore_index=True)
+    return df_yearly
+# End of run_rekap_tahunan
 
 def simpan_data_karyawan(df_pegawai: pd.DataFrame) -> None:
 

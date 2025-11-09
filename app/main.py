@@ -1,8 +1,9 @@
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from . import models, schemas
 from .db import SessionLocal, init_db
-from .rekap import run_rekap
+from .rekap import run_rekap, run_rekap_tahunan
 import os
 try:
     # If python-dotenv is installed, automatically load a local .env file so the
@@ -66,6 +67,11 @@ def rekap_endpoint(payload: schemas.RekapRequest):
     # avoids sending secrets in requests.
     # """
     # Determine remote_url or SSH mode from payload or environment
+
+    # If month and year are in the future, raise error
+    if payload.year > datetime.now().year or (payload.year == datetime.now().year and payload.month > datetime.now().month):
+        raise HTTPException(status_code=400, detail="Tidak bisa mencetak laporan untuk bulan yang belum berjalan.")
+    
     remote_url = payload.remote_url or os.getenv('REMOTE_DATABASE_URL')
 
     use_ssh = bool(payload.use_ssh) or (os.getenv('SSH_HOST') is not None)
@@ -110,6 +116,54 @@ def rekap_endpoint(payload: schemas.RekapRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     # convert DataFrame to list of records
+    result = df.to_dict(orient='records') if not df.empty else []
+    return {"count": len(result), "data": result}
+
+@app.post("/rekap_tahunan")
+def rekap_tahunan_endpoint(payload: schemas.RekapRequest):
+
+    # If month and year are in the future, raise error
+    if payload.year > datetime.now().year or (payload.year == datetime.now().year and payload.month > datetime.now().month):
+        raise HTTPException(status_code=400, detail="Tidak bisa mencetak laporan untuk bulan yang belum berjalan.")
+
+    # Similar to /rekap but for annual recap
+    remote_url = payload.remote_url or os.getenv('REMOTE_DATABASE_URL')
+
+    use_ssh = bool(payload.use_ssh) or (os.getenv('SSH_HOST') is not None)
+
+    ssh_host = payload.ssh_host or os.getenv('SSH_HOST')
+    ssh_port = int(os.getenv('SSH_PORT', 22))
+    ssh_user = payload.ssh_user or os.getenv('SSH_USER')
+    ssh_password = payload.ssh_password or os.getenv('SSH_PASSWORD')
+
+    db_host = payload.db_host or os.getenv('DB_HOST', '127.0.0.1')
+    db_port = int(payload.db_port) if payload.db_port is not None else int(os.getenv('DB_PORT', 3306))
+    db_user = payload.db_user or os.getenv('DB_USER')
+    db_password = payload.db_password or os.getenv('DB_PASSWORD')
+    db_name = payload.db_name or os.getenv('DB_NAME', 'bkd_presensi')
+
+    if not remote_url and not use_ssh:
+        raise HTTPException(status_code=400, detail="No remote DB configured: set REMOTE_DATABASE_URL or enable SSH in environment")
+    if use_ssh and not (ssh_host and ssh_user and db_user and db_password):
+        raise HTTPException(status_code=400, detail="SSH mode enabled but SSH/DB credentials are missing in environment or request")
+    try:
+        df = run_rekap_tahunan(
+            payload.instansi,
+            payload.year,
+            remote_url=remote_url,
+            use_ssh=use_ssh,
+            ssh_host=ssh_host,
+            ssh_port=ssh_port,
+            ssh_user=ssh_user,
+            ssh_password=ssh_password,
+            db_host=db_host,
+            db_port=db_port,
+            db_user=db_user,
+            db_password=db_password,
+            db_name=db_name,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     result = df.to_dict(orient='records') if not df.empty else []
     return {"count": len(result), "data": result}
 
