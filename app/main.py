@@ -58,20 +58,20 @@ def create_item(item: schemas.Item, db: Session = Depends(get_db)):
 
 @app.post("/rekap")
 def rekap_endpoint(payload: schemas.RekapRequest):
-    """Run rekap pipeline in-memory and return laporan as JSON list.
+    # """Run rekap pipeline in-memory and return laporan as JSON list.
 
-    This endpoint accepts a minimal payload (instansi, month, year). Connection
-    credentials (remote DB URL or SSH + DB credentials) are read from environment
-    variables if not provided in the request. This keeps the API body small and
-    avoids sending secrets in requests.
-    """
+    # This endpoint accepts a minimal payload (instansi, month, year). Connection
+    # credentials (remote DB URL or SSH + DB credentials) are read from environment
+    # variables if not provided in the request. This keeps the API body small and
+    # avoids sending secrets in requests.
+    # """
     # Determine remote_url or SSH mode from payload or environment
     remote_url = payload.remote_url or os.getenv('REMOTE_DATABASE_URL')
 
     use_ssh = bool(payload.use_ssh) or (os.getenv('SSH_HOST') is not None)
 
     ssh_host = payload.ssh_host or os.getenv('SSH_HOST')
-    ssh_port = int(payload.ssh_port) if payload.ssh_port is not None else int(os.getenv('SSH_PORT', 22))
+    ssh_port = int(os.getenv('SSH_PORT', 22))
     ssh_user = payload.ssh_user or os.getenv('SSH_USER')
     ssh_password = payload.ssh_password or os.getenv('SSH_PASSWORD')
 
@@ -112,7 +112,6 @@ def rekap_endpoint(payload: schemas.RekapRequest):
     # convert DataFrame to list of records
     result = df.to_dict(orient='records') if not df.empty else []
     return {"count": len(result), "data": result}
-
 
 if __name__ == "__main__":
     import uvicorn

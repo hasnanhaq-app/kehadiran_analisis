@@ -10,7 +10,7 @@ from sshtunnel import SSHTunnelForwarder
 import pymysql
 
 from .analytics import get_engine
-from .presensi import generate_presensi_laporan
+from .presensi import generate_presensi_laporan, generate_laporan_bulanan
 
 
 def _fetch_via_ssh(ssh_host: str, ssh_port: int, ssh_user: str, ssh_password: Optional[str],
@@ -47,6 +47,7 @@ def _fetch_via_ssh(ssh_host: str, ssh_port: int, ssh_user: str, ssh_password: Op
         conn.close()
 
     return df_pegawai, df_rencana, df_presensi, df_shift, df_absen
+# End of _fetch_via_ssh
 
 
 def _fetch_via_engine(remote_url: str, instansi_id: int, tanggal_awal: str, tanggal_akhir: str):
@@ -87,6 +88,7 @@ def _fetch_via_engine(remote_url: str, instansi_id: int, tanggal_awal: str, tang
             df_absen = pd.read_sql_query("SELECT * FROM presensi_absen", conn)
 
     return df_pegawai, df_rencana, df_presensi, df_shift, df_absen
+# End of _fetch_via_engine
 
 
 def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str] = None, use_ssh: bool = False,
@@ -143,4 +145,11 @@ def run_rekap(instansi: int, month: int, year: int, *, remote_url: Optional[str]
 
     df_laporan = generate_presensi_laporan(df_pegawai, df_rencana_shift, df_presensi, df_absen, month, year, tanggal_awal, tanggal_akhir)
 
-    return df_laporan
+    # df_laporan = df_laporan[df_laporan['karyawan_id'] == 22777]
+    
+    # return df_laporan
+
+    df_laporan_bulanan = generate_laporan_bulanan(df_laporan)
+
+    return df_laporan_bulanan
+# End of run_rekap

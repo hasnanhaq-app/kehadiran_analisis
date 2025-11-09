@@ -141,6 +141,37 @@ def generate_presensi_laporan(df_pegawai: pd.DataFrame, df_rencana: pd.DataFrame
     df_laporan = pd.DataFrame(laporan_rows)
     return df_laporan
 
+def generate_laporan_bulanan(df_laporan: pd.DataFrame) -> pd.DataFrame:
+    """Generate monthly report from daily laporan DataFrame."""
+    
+    df_laporan_bulanan = df_laporan
+
+    df_laporan_bulanan['masuk_kat'] = df_laporan_bulanan.apply(masuk_kategori, axis=1)
+    df_laporan_bulanan['pulang_kat'] = df_laporan_bulanan.apply(pulang_kategori, axis=1)
+    df_laporan_bulanan['status_hadir'] = df_laporan_bulanan.apply(status_hadir, axis=1)
+
+    # return df_laporan_bulanan
+
+    rekap_per_pegawai = df_laporan_bulanan.groupby(['karyawan_id']).agg(
+        jumlah_hari=('tanggal_kerja', 'count'),
+        hadir=('status_hadir', lambda x: (x == 'hadir').sum()),
+        tidak_hadir=('status_hadir', lambda x: (x != 'hadir').sum()),
+        twm=('masuk_kat', lambda x: (x == 'tw').sum()),
+        t1=('masuk_kat', lambda x: (x == 't1').sum()),
+        t2=('masuk_kat', lambda x: (x == 't2').sum()),
+        t3=('masuk_kat', lambda x: (x == 't3').sum()),
+        t4=('masuk_kat', lambda x: (x == 't4').sum()),
+        twp=('pulang_kat', lambda x: (x == 'tw').sum()),
+        p1=('pulang_kat', lambda x: (x == 'p1').sum()),
+        p2=('pulang_kat', lambda x: (x == 'p2').sum()),
+        p3=('pulang_kat', lambda x: (x == 'p3').sum()),
+        p4=('pulang_kat', lambda x: (x == 'p4').sum()),
+        izin_sakit=('status_hadir', lambda x: (x == 'izin/sakit').sum()),
+        tugas_bk=('status_hadir', lambda x: (x == 'tugas/bk').sum()),
+        tanpa_keterangan=('status_hadir', lambda x: (x == 'tidak hadir').sum()),
+    ).reset_index()
+    
+    return rekap_per_pegawai
 
 __all__ = [
     'carbon_parse',
