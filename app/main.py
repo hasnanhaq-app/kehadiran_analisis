@@ -1,6 +1,8 @@
+from calendar import month
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
+from typing import List, Optional
 
 from app.analisis import analisis_kehadiran
 from . import models, schemas
@@ -186,6 +188,46 @@ def api_analisis_kehadiran(payload: schemas.AnalasisKehadiranResponse):
         # return payload
     except Exception as e:
         # keep message short and return 500
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/rekap_kehadiran", response_model=schemas.RekapKehadiranListResponse, status_code=200)
+def api_hasil_analisis(tahun: int, bulan: Optional[int] = None, karyawan_id: Optional[int] = None, instansi_id: Optional[int] = None, db: Session = Depends(get_db)):
+    try:
+        query = db.query(models.RekapKehadiranModel).filter(
+            models.RekapKehadiranModel.tahun == tahun,
+        )
+        if bulan is not None:
+            if bulan < 1 or bulan > 12:
+                raise HTTPException(status_code=400, detail="Bulan harus antara 1 dan 12.")
+            
+            query = query.filter(models.RekapKehadiranModel.bulan == bulan)
+
+        if karyawan_id is not None:
+            query = query.filter(models.RekapKehadiranModel.karyawan_id == karyawan_id)
+        
+        if instansi_id is not None:
+            query = query.filter(models.RekapKehadiranModel.instansi_id == instansi_id)
+
+        # get all matching records ordered by instansi_id karyawan_id, tahun, bulan
+        rekap_record = query.order_by(
+            models.RekapKehadiranModel.instansi_id,
+            models.RekapKehadiranModel.karyawan_id,
+            models.RekapKehadiranModel.tahun,
+            models.RekapKehadiranModel.bulan
+        ).all()
+
+        if not rekap_record:
+            raise HTTPException(status_code=404, detail="Rekap Kehadiran record not found")
+        # return a pydantic model built from the ORM object
+        # return [schemas.RekapKehadiranResponse.from_orm(r) for r in rekap_record]
+    
+        rekap_list = [schemas.RekapKehadiranResponse.from_orm(r) for r in rekap_record]
+
+        return {
+            "count": len(rekap_list),
+            "data": rekap_list
+        }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

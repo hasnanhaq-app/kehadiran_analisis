@@ -48,3 +48,34 @@ class AnalasisKehadiranResponse(BaseModel):
     year: int
     month: int
     minimum_tk: int
+
+class RekapKehadiranResponse(BaseModel):
+    tahun: int
+    bulan: int
+    karyawan_id: int
+    instansi_id: int
+    jumlah_hari: int
+    hadir: int
+    tidak_hadir: int
+    twm: int
+    t1: int
+    t2: int
+    t3: int
+    t4: int
+    twp: int
+    p1: int
+    p2: int
+    p3: int
+    p4: int
+    izin_sakit: int
+    tugas_bk: int
+    tanpa_keterangan: int
+
+    model_config = {"from_attributes": True}
+
+class RekapKehadiranListResponse(BaseModel):
+    count: int
+    data: list[RekapKehadiranResponse]
+
+    # Pydantic v2: allow creating from attribute/ORM objects if needed
+    model_config = {"from_attributes": True}

@@ -4,13 +4,25 @@
 
 set -euo pipefail
 
-# Load .env into environment (export all key=value pairs)
+# Load .env into environment (export all key=value pairs) without `source`
 if [ -f .env ]; then
-  # export variables from .env into current environment
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  # read lines, skip comments/blanks, export KEY=VALUE (preserves parentheses etc.)
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|\#*) continue ;;
+    esac
+    # skip lines without '='
+    [ "${line#*=}" = "$line" ] && continue
+    key=${line%%=*}
+    value=${line#*=}
+    # trim whitespace around key (mac sed)
+    key=$(echo "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    # remove surrounding quotes from value if present
+    if [[ $value =~ ^\".*\"$ || $value =~ ^\'.*\'$ ]]; then
+      value=${value:1:-1}
+    fi
+    export "$key"="$value"
+  done < .env
 else
   echo ".env not found in project root — create one or export DATABASE_URL yourself"
 fi
