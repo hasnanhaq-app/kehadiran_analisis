@@ -1,9 +1,15 @@
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
+
+from app.analisis import analisis_kehadiran
 from . import models, schemas
 from .db import SessionLocal, init_db
 from .rekap import run_rekap, run_rekap_tahunan
+from .analytics import get_engine
+from .analisis import analisis_kehadiran
+
+
 import os
 try:
     # If python-dotenv is installed, automatically load a local .env file so the
@@ -120,11 +126,11 @@ def rekap_endpoint(payload: schemas.RekapRequest):
     return {"count": len(result), "data": result}
 
 @app.post("/rekap_tahunan")
-def rekap_tahunan_endpoint(payload: schemas.RekapRequest):
+def rekap_tahunan_endpoint(payload: schemas.RekapTahunanRequest):
 
     # If month and year are in the future, raise error
-    if payload.year > datetime.now().year or (payload.year == datetime.now().year and payload.month > datetime.now().month):
-        raise HTTPException(status_code=400, detail="Tidak bisa mencetak laporan untuk bulan yang belum berjalan.")
+    if payload.year > datetime.now().year:
+        raise HTTPException(status_code=400, detail="Tidak bisa mencetak laporan untuk tahun yang belum berjalan.")
 
     # Similar to /rekap but for annual recap
     remote_url = payload.remote_url or os.getenv('REMOTE_DATABASE_URL')
@@ -164,8 +170,23 @@ def rekap_tahunan_endpoint(payload: schemas.RekapRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
     result = df.to_dict(orient='records') if not df.empty else []
     return {"count": len(result), "data": result}
+
+@app.get("/analisis_kehadiran")
+def api_analisis_kehadiran(payload: schemas.AnalasisKehadiranResponse):
+    """
+    Analyze sum of `tanpa_keterangan` in `rekap_bulanan` for given year and month.
+    Returns a list of rows with instansi_id and total_tanpa_keterangan.
+    """
+    try:
+        results = analisis_kehadiran(year=payload.year, month=payload.month, minimum_tk=payload.minimum_tk)
+        return {"count": len(results), "data": results}
+        # return payload
+    except Exception as e:
+        # keep message short and return 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

@@ -68,14 +68,14 @@ def main():
             except Exception:
                 print("Unable to run SHOW TABLES on this engine; skipping table list.")
 
-            # sample rows from rekap_kehadiran if it exists
+            # sample rows from rekap_bulanan if it exists
             try:
-                res = conn.execute(text("SELECT * FROM rekap_kehadiran LIMIT 5")).fetchall()
-                print(f"Sample rows from rekap_kehadiran ({len(res)}):")
+                res = conn.execute(text("SELECT * FROM rekap_bulanan LIMIT 5")).fetchall()
+                print(f"Sample rows from rekap_bulanan ({len(res)}):")
                 for r in res:
                     print(r)
             except Exception:
-                print("Table `rekap_kehadiran` not found or unreadable; skip sample rows.")
+                print("Table `rekap_bulanan` not found or unreadable; skip sample rows.")
 
     except SQLAlchemyError as e:
         print("Connection failed:", e)
