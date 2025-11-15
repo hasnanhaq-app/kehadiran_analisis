@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from pydantic import BaseModel
 from typing import Optional
 
@@ -7,9 +8,41 @@ class Item(BaseModel):
     name: str
     description: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
+class PresensiKaryawanResponse(BaseModel):
+    id: Optional[int] = None
+    nip: Optional[str] = None
+    name: Optional[str] = None
+    group_id: Optional[int] = None
+    imei: Optional[str] = None
+    instansi_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
+    tempat_lahir: Optional[str] = None
+    tanggal_lahir: Optional[date] = None
+    jenis_kelamin: Optional[str] = None
+    pendidikan_terakhir: Optional[str] = None
+    alamat: Optional[str] = None
+    golongan: Optional[str] = None
+    kordinat: Optional[str] = None
+    jabatan: Optional[str] = None
+    eselon_id: Optional[int] = None
+    pangkat_id: Optional[int] = None
+    status_face: Optional[int] = None
+    comment_face: Optional[str] = None
+    verified_id: Optional[int] = None
+    verified_date: Optional[datetime] = None
+    presensi_face: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+class PresensiKaryawanListResponse(BaseModel):
+    count: int
+    data: list[PresensiKaryawanResponse]
+
+    # Pydantic v2: allow creating from attribute/ORM objects if needed
+    model_config = {"from_attributes": True}
 
 class RekapRequest(BaseModel):
     instansi: int

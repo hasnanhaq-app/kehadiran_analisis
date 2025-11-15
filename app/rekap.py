@@ -54,6 +54,31 @@ def _fetch_via_ssh(ssh_host: str, ssh_port: int, ssh_user: str, ssh_password: Op
     return df_pegawai, df_rencana, df_presensi, df_shift, df_absen
 # End of _fetch_via_ssh
 
+# Fetch data to Local DB using SQLAlchemy engine and using pydantic models
+def _fetch_local_db(instansi_id: int, tanggal_awal: str, tanggal_akhir: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    engine = get_engine(None)  # get local engine from env DATABASE_URL
+    with engine.connect() as conn:
+        df_pegawai = pd.read_sql_query(f"SELECT * FROM presensi_karyawan WHERE instansi_id = {instansi_id}", conn)
+
+        df_presensi = pd.read_sql_query(
+            f"SELECT * FROM presensi_kehadiran WHERE instansi_id = {instansi_id} AND date(tanggal_masuk) BETWEEN '{tanggal_awal}' AND '{tanggal_akhir}'",
+            conn,
+        )
+
+        df_rencana = pd.read_sql_query(
+            f"SELECT * FROM presensi_rencana_shift WHERE instansi_id = {instansi_id} AND date(tanggal_masuk) BETWEEN '{tanggal_awal}' AND '{tanggal_akhir}'",
+            conn,
+        )
+
+        df_shift = pd.read_sql_query("SELECT * FROM presensi_shift", conn)
+
+        df_absen = pd.read_sql_query(
+            f"SELECT presensi_absen.* FROM presensi_absen LEFT JOIN presensi_karyawan ON presensi_absen.karyawan_id = presensi_karyawan.id WHERE presensi_karyawan.instansi_id = {instansi_id}",
+            conn,
+        )
+
+    return df_pegawai, df_rencana, df_presensi, df_shift, df_absen
+
 
 def _fetch_via_engine(remote_url: str, instansi_id: int, tanggal_awal: str, tanggal_akhir: str):
     engine = get_engine(remote_url)

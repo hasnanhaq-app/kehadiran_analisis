@@ -1,18 +1,5 @@
-from calendar import month
-from datetime import datetime
-from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy.orm import Session
-from typing import List, Optional
-
-from app.analisis import analisis_kehadiran
-from . import models, schemas
-from .db import SessionLocal, init_db
-from .rekap import run_rekap, run_rekap_tahunan
-from .analytics import get_engine
-from .analisis import analisis_kehadiran
-
-
 import os
+from pydoc import text
 try:
     # If python-dotenv is installed, automatically load a local .env file so the
     # API will read connection credentials from it without extra setup.
@@ -22,6 +9,16 @@ try:
 except Exception:
     # If dotenv isn't installed, rely on the environment being set externally.
     pass
+
+from calendar import month
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from typing import List, Optional
+
+from . import models, schemas
+from .db import SessionLocal, init_db
+from .rekap import run_rekap, run_rekap_tahunan
 
 app = FastAPI(title="Simple FastAPI App")
 
@@ -64,6 +61,43 @@ def create_item(item: schemas.Item, db: Session = Depends(get_db)):
     db.refresh(db_item)
     return db_item
 
+@app.get("/data_karyawan", response_model=schemas.PresensiKaryawanListResponse, status_code=200)
+def get_karyawan_data(karyawan_id: Optional[int] = None, instansi_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(models.PresensIKaryawanModel)
+    if karyawan_id is not None:
+        query = query.filter(models.PresensIKaryawanModel.id == karyawan_id)
+    if instansi_id is not None:
+        query = query.filter(models.PresensIKaryawanModel.instansi_id == instansi_id)
+    karyawan_records = query.limit(limit).all()
+    if not karyawan_records:
+        return {"count": 0, "data": []}
+    karyawan_list = []
+    for record in karyawan_records:
+        karyawan_list.append(schemas.PresensiKaryawanResponse.from_orm(record))
+    return {
+        "count": len(karyawan_list),
+        "data": karyawan_list
+    }
+
+
+@app.get("/data_local_db_engine")
+def get_local_data(instansi_id: int, tanggal_awal: str, tanggal_akhir: str):
+    # get local data using _fetch_local_db in rekap.py
+
+    try:
+        from .rekap import _fetch_local_db
+        df = _fetch_local_db(instansi_id, tanggal_awal, tanggal_akhir)
+        result = df.to_dict(orient='records') if not df.empty else []
+        res = _fetch_local_db(instansi_id, tanggal_awal, tanggal_akhir, return_meta=True)
+        # support fuction that returns (df, meta) or df or list
+        df = res[0] if isinstance(res, (tuple, list)) and len(res) > 2 else res
+        if hasattr(df, 'empty'):
+            result = df.to_dict(orient='records') if not df.empty else []
+        else:
+            result = df or []
+        return {"count": len(result), "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/rekap")
 def rekap_endpoint(payload: schemas.RekapRequest):
@@ -176,13 +210,16 @@ def rekap_tahunan_endpoint(payload: schemas.RekapTahunanRequest):
     result = df.to_dict(orient='records') if not df.empty else []
     return {"count": len(result), "data": result}
 
-@app.get("/analisis_kehadiran")
+@app.post("/analisis_kehadiran")
 def api_analisis_kehadiran(payload: schemas.AnalasisKehadiranResponse):
     """
     Analyze sum of `tanpa_keterangan` in `rekap_bulanan` for given year and month.
     Returns a list of rows with instansi_id and total_tanpa_keterangan.
     """
     try:
+        # import here to avoid import-time side effects / circular imports
+        from .analisis import analisis_kehadiran
+
         results = analisis_kehadiran(year=payload.year, month=payload.month, minimum_tk=payload.minimum_tk)
         return {"count": len(results), "data": results}
         # return payload
@@ -217,9 +254,7 @@ def api_hasil_analisis(tahun: int, bulan: Optional[int] = None, karyawan_id: Opt
         ).all()
 
         if not rekap_record:
-            raise HTTPException(status_code=404, detail="Rekap Kehadiran record not found")
-        # return a pydantic model built from the ORM object
-        # return [schemas.RekapKehadiranResponse.from_orm(r) for r in rekap_record]
+            return {"count": 0, "data": []}
     
         rekap_list = [schemas.RekapKehadiranResponse.from_orm(r) for r in rekap_record]
 

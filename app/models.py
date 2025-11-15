@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, PrimaryKeyConstraint
+from sqlalchemy import Column, Integer, String, Text, PrimaryKeyConstraint, BigInteger, DateTime, Date
 from .db import Base
 
 
@@ -14,6 +14,33 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100))
     email = Column(String(100), unique=True)
+
+class PresensIKaryawanModel(Base):
+    __tablename__ = "presensi_karyawan"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nip = Column(String(191), nullable=False)
+    name = Column(String(191), nullable=False)
+    group_id = Column(BigInteger, nullable=False)
+    imei = Column(String(191), nullable=True)
+    instansi_id = Column(BigInteger, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    tempat_lahir = Column(String(191), nullable=True)
+    tanggal_lahir = Column(Date, nullable=True)
+    jenis_kelamin = Column(String(191), nullable=True)
+    pendidikan_terakhir = Column(String(191), nullable=True)
+    alamat = Column(String(191), nullable=True)
+    golongan = Column(String(191), nullable=True)
+    kordinat = Column(String(255), nullable=True)
+    jabatan = Column(String(255), nullable=True)
+    eselon_id = Column(Integer, nullable=True)
+    pangkat_id = Column(Integer, nullable=True)
+    status_face = Column(Integer, nullable=True)
+    comment_face = Column(String(255), nullable=True)
+    verified_id = Column(Integer, nullable=True)
+    verified_date = Column(DateTime, nullable=True)
+    presensi_face = Column(Integer, nullable=True)
 
 class RekapKehadiranModel(Base):
     __tablename__ = "rekap_bulanan"
